@@ -1,147 +1,88 @@
+#include "device.h"
 #include <iostream>
-#include <vector>
 #include <string>
-#include <algorithm>
-#include <cassert>
+#include <sstream>
 
-enum class State {
-    Idle,
-    Running,
-    Fault
-};
-
-struct Device {
-    State state = State::Idle;
-    int temperature = 20;
-};
-
-bool isSafeTemperature(int temperature) {
-    return temperature>=0 && temperature<=80;
-}
-
-bool start(Device& device) {
-    if (device.state != State::Idle) {
-        return false;
+std::string stateName(State state) {
+    switch (state) {
+        case State::Idle:
+            return "Idle";
+        case State::Running:
+            return "Running";
+        case State::Fault:
+            return "Fault";
+        default:
+            return "Unknown";
     }
-    device.state = State::Running;
-    return true;
-}
-
-bool stop(Device& device) {
-    if (device.state != State::Running) {
-        return false;
-    }
-    device.state = State::Idle;
-    return true;
-}
-
-bool temperatureUpdate(Device& device, int temperature) {
-    // Always retain the last reading
-    device.temperature = temperature;
-
-    if (!isSafeTemperature(temperature)) {
-        device.state = State::Fault;
-        return false;
-    }
-
-    // A safe reading does not automatically clear an existing fault.
-    return true;
-}
-
-bool reset(Device& device) {
-    if (device.state != State::Fault || !isSafeTemperature(device.temperature)){
-        return false;
-    }
-    device.state = State::Idle;
-    return true;
 }
 
 int main() {
     Device device;
+    std::string line;
 
-    // Initial state.
-    assert(device.state == State::Idle);
-    assert(device.temperature == 20);
+    while (std::getline(std::cin, line)) {
+        std::istringstream input(line);
+        std::string command;
 
-    // Rejected commands leave an idle device unchanged.
-    assert(!stop(device));
-    assert(device.state == State::Idle);
-    assert(device.temperature == 20);
-
-    assert(!reset(device));
-    assert(device.state == State::Idle);
-    assert(device.temperature == 20);
-
-    // Start successfully, then reject a repeated start.
-    assert(start(device));
-    assert(device.state == State::Running);
-
-    assert(!start(device));
-    assert(device.state == State::Running);
-    assert(device.temperature == 20);
-
-    // A safe reading preserves normal operation.
-    assert(temperatureUpdate(device, 50));
-    assert(device.temperature == 50);
-    assert(device.state == State::Running);
-
-    // An unsafe reading is stored and causes a fault.
-    assert(!temperatureUpdate(device, 95));
-    assert(device.temperature == 95);
-    assert(device.state == State::Fault);
-
-    // Commands cannot bypass the fault.
-    assert(!start(device));
-    assert(device.state == State::Fault);
-    assert(device.temperature == 95);
-
-    assert(!stop(device));
-    assert(device.state == State::Fault);
-    assert(device.temperature == 95);
-
-    assert(!reset(device));
-    assert(device.state == State::Fault);
-    assert(device.temperature == 95);
-
-    // Cooling down does not automatically clear the fault.
-    assert(temperatureUpdate(device, 40));
-    assert(device.temperature == 40);
-    assert(device.state == State::Fault);
-
-    // Explicit reset allows operation again.
-    assert(reset(device));
-    assert(device.state == State::Idle);
-    assert(device.temperature == 40);
-
-    assert(start(device));
-    assert(device.state == State::Running);
-
-    assert(stop(device));
-    assert(device.state == State::Idle);
-    assert(device.temperature == 40);
-
-    // Check temperature boundaries from every starting state.
-    for (State initialState :
-         {State::Idle, State::Running, State::Fault}) {
-
-        // Both endpoints are valid and preserve the current state.
-        for (int temperature : {0, 80}) {
-            Device boundaryDevice{initialState, 20};
-
-            assert(temperatureUpdate(boundaryDevice, temperature));
-            assert(boundaryDevice.temperature == temperature);
-            assert(boundaryDevice.state == initialState);
+        if (!(input >> command)) {
+            continue;
+        }
+        const bool takesNoArguments =
+            command == "start" ||
+            command == "stop" ||
+            command == "status" ||
+            command == "reset" ||
+            command == "quit";
+        if (takesNoArguments) {
+            std::string extra;
+            if (input >> extra) {
+                std::cout << "Command rejected\n";
+                continue;
+            }
         }
 
-        // Values just outside the range cause a fault.
-        for (int temperature : {-1, 81}) {
-            Device boundaryDevice{initialState, 20};
-
-            assert(!temperatureUpdate(boundaryDevice, temperature));
-            assert(boundaryDevice.temperature == temperature);
-            assert(boundaryDevice.state == State::Fault);
+        if (command == "quit") {
+            break;
+        } else if (command == "start") {
+            if (!start(device)) {
+                std::cout << "Device failed to start \n";
+            } else {
+                std::cout << "Device successfully started \n";
+            }
+        } else if (command == "stop") {
+            if (!stop(device)) {
+                std::cout << "Device failed to stop \n";
+            } else {
+                std::cout << "Device successfully stopped \n";
+            }
+        } else if (command == "status"){
+            std::cout << "State: " << stateName(device.state) << ", Temperature: " << device.temperature << std::endl;
+        } else if (command == "temp") {
+            int temperature;
+            std::string extra;
+            if (!(input >> temperature)) {
+                std::cout << "Error reading temperature \n";
+                continue;
+            }
+            if (input >> extra) {
+                std::cout << "Command rejected\n";
+                continue;
+            }
+            if (!temperatureUpdate(device, temperature)){
+                std::cout << "Reading stored: unsafe temperature; device is in Fault.\n";
+            } else {
+                std::cout << "Temperature recorded: safe range\n";
+            }
+        } else if (command == "reset") {
+            if (!reset(device)) {
+                std::cout << "Device failed to reset \n";
+            } else {
+                std::cout << "Device successfully reset \n";
+            }
+        } else {
+            std::cout << "Unknown command \n";
         }
     }
-
-    std::cout << "All tests passed!\n";
+    return 0;
 }
+

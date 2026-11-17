@@ -77,3 +77,24 @@ The model tests cover state transitions, rejected commands, recovery,
 retention of unsafe readings, and temperature boundaries. `main.cpp` contains
 the interactive CLI, `device.h` and `device.cpp` define the model, and
 `tests.cpp` contains the assertions.
+
+## Recording and replay
+
+Run these commands from the repository root:
+
+```sh
+./cmake-build-debug/device_sim --record recorded.txt
+./cmake-build-debug/device_sim --replay recorded.txt
+```
+
+Recording executes commands and displays their output while saving valid
+commands to the file. The output file is overwritten when recording starts.
+Malformed commands are reported and omitted; valid commands that cause
+Fault or are rejected by the device's current state are still recorded.
+
+Traces begin with `device-sim-trace 1`, followed by one command per line.
+Replay starts with a fresh device and executes commands in file order,
+stopping at `quit` or end-of-file. An invalid header or malformed command
+stops replay with exit code 1; malformed commands include a line number.
+
+Running without arguments starts an ordinary interactive session.

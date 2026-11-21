@@ -12,6 +12,7 @@ enum class CommandResult {
 };
 
 std::string stateName(State state);
+
 CommandResult processCommand(Device& device, const std::string& line) {
         std::istringstream input(line);
         std::string command;
@@ -96,12 +97,18 @@ bool replayCommands(Device& device, const std::string& filename) {
     }
 
     std::size_t lineNumber = 1;
+    bool reportedFirstFault = false;
     while (std::getline(file,line)) {
         ++lineNumber;
+        const State previousState = device.state;
         CommandResult result = processCommand(device, line);
         if (result == CommandResult::Invalid) {
             std::cerr << "Invalid command at line " << lineNumber << "\n";
             return false;
+        }
+        if (!reportedFirstFault && previousState != State::Fault && device.state == State::Fault) {
+            std::cout << "First fault at line: " << lineNumber << ": " << line << std::endl;
+            reportedFirstFault = true;
         }
         if (result == CommandResult::Quit) {
             return true;

@@ -1,0 +1,10 @@
+device-sim-trace 1
+start
+temp 30
+temp 95
+temp 40
+reset
+status
+temp -5
+status
+quit

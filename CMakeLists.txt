@@ -15,3 +15,14 @@ add_test(
         "$<TARGET_FILE:device_sim>"
         "${CMAKE_CURRENT_SOURCE_DIR}/trace-two-faults.txt"
 )
+add_test(
+        NAME replay_timestamps
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/test_replay_timestamps.sh"
+        "$<TARGET_FILE:device_sim>"
+        "${CMAKE_CURRENT_SOURCE_DIR}/trace-two-faults-v2.txt"
+)
+add_test(
+        NAME record_timestamps
+        COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/test_record_timestamps.sh"
+        "$<TARGET_FILE:device_sim>"
+)

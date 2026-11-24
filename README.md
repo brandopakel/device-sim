@@ -60,14 +60,16 @@ Idle at 40.
 
 ## Run tests
 
-After building, run the registered model test separately from the CLI:
+After building, run the registered tests:
 
 ```sh
 ctest --test-dir cmake-build-debug --output-on-failure
 ```
 
-CTest should report `device_model` passing. To see the assertion executable's
-`All tests passed!` message directly, run:
+CTest runs four tests: `device_model` (the assertions in `tests.cpp`),
+`replay_two_faults` (a version 1 trace), `replay_timestamps` (a version 2
+trace) and `record_timestamps` (records a short session, then replays it).
+To see the assertion executable's `All tests passed!` message directly, run:
 
 ```sh
 ./cmake-build-debug/device_sim_tests
@@ -76,7 +78,8 @@ CTest should report `device_model` passing. To see the assertion executable's
 The model tests cover state transitions, rejected commands, recovery,
 retention of unsafe readings, and temperature boundaries. `main.cpp` contains
 the interactive CLI, `device.h` and `device.cpp` define the model, and
-`tests.cpp` contains the assertions.
+`tests.cpp` contains the assertions. The `test_*.sh` scripts and `trace-*.txt`
+files drive the replay and recording tests.
 
 ## Recording and replay
 
@@ -92,9 +95,30 @@ commands to the file. The output file is overwritten when recording starts.
 Malformed commands are reported and omitted; valid commands that cause
 Fault or are rejected by the device's current state are still recorded.
 
-Traces begin with `device-sim-trace 1`, followed by one command per line.
-Replay starts with a fresh device and executes commands in file order,
-stopping at `quit` or end-of-file. An invalid header or malformed command
-stops replay with exit code 1; malformed commands include a line number.
+Recording writes version 2 traces: a `device-sim-trace 2` header, then one
+command per line, each starting with the milliseconds since recording began.
+Blank lines are not recorded.
+
+```text
+device-sim-trace 2
+0 start
+1200 temp 30
+2450 temp 95
+```
+
+Replay accepts version 1 traces (`device-sim-trace 1`, commands without
+timestamps) and version 2 traces. It starts with a fresh device, executes
+commands in file order, stops at `quit` or end-of-file, and reports the first
+command that puts the device in Fault:
+
+```text
+First fault at line: 4 (t=2450 ms): temp 95
+```
+
+Version 1 traces print the same line without the `(t=... ms)` part. Line
+numbers count the header as line 1. Any other header stops replay with exit
+code 1. So does a malformed command, or a version 2 timestamp that is missing,
+negative or earlier than the line before; those errors include the line
+number.
 
 Running without arguments starts an ordinary interactive session.

@@ -1,0 +1,10 @@
+device-sim-trace 2
+0 start
+1200 temp 30
+2450 temp 95
+3100 temp 40
+3900 reset
+4300 status
+5000 temp -5
+5600 status
+6000 quit

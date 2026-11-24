@@ -4,6 +4,7 @@
 #include <sstream>
 #include <fstream>
 #include <cstddef>
+#include <chrono>
 
 enum class CommandResult {
     Continue,
@@ -88,26 +89,52 @@ bool replayCommands(Device& device, const std::string& filename) {
 
     std::string line;
     if (!std::getline(file,line)) {
-        std::cerr << "Could not read trace header";
+        std::cerr << "Could not read trace header\n";
         return false;
     }
-    if (line != "device-sim-trace 1") {
-        std::cerr << "Invalid trace header";
+
+    int version = 0;
+    if (line == "device-sim-trace 1") {
+        version = 1;
+    }
+    if (line == "device-sim-trace 2") {
+        version = 2;
+    }
+
+    if (version == 0) {
+        std::cerr << "Invalid trace header\n";
         return false;
     }
 
     std::size_t lineNumber = 1;
     bool reportedFirstFault = false;
+    long long previousTime = 0;
+
     while (std::getline(file,line)) {
         ++lineNumber;
+        std::string command = line;
+        long long t = 0;
+        if (version == 2) {
+            std::istringstream parts(line);
+            if (!(parts >> t) || t < previousTime) {
+                std::cerr << "Invalid timestamp at line " << lineNumber << ": " << line << std::endl;
+                return false;
+            }
+            previousTime = t;
+            std::getline(parts >> std::ws, command);
+        }
         const State previousState = device.state;
-        CommandResult result = processCommand(device, line);
+        CommandResult result = processCommand(device, command);
         if (result == CommandResult::Invalid) {
             std::cerr << "Invalid command at line " << lineNumber << "\n";
             return false;
         }
         if (!reportedFirstFault && previousState != State::Fault && device.state == State::Fault) {
-            std::cout << "First fault at line: " << lineNumber << ": " << line << std::endl;
+            std::cout << "First fault at line: " << lineNumber;
+            if (version == 2) {
+                std::cout << " (t=" << t << " ms)";
+            }
+            std::cout << ": " << command << std::endl;
             reportedFirstFault = true;
         }
         if (result == CommandResult::Quit) {
@@ -131,20 +158,26 @@ bool recordCommands(Device& device, const std::string& filename) {
         return false;
     }
 
-    file << "device-sim-trace 1\n";
+    file << "device-sim-trace 2\n";
 
     if (!file) {
         std::cerr << "Could not write trace header\n";
         return false;
     }
 
+    const auto recordingStart = std::chrono::steady_clock::now();
     std::string line;
     while (std::getline(std::cin,line)) {
+        if (line.find_first_not_of(" \t") == std::string::npos) {
+            continue;   // nothing but spaces: no command to record
+        }
+        const auto elapsed = std::chrono::steady_clock::now() - recordingStart;
+        const long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
         CommandResult result = processCommand(device, line);
         if (result == CommandResult::Invalid) {
             continue;
         }
-        file << line << "\n";
+        file << ms << " " << line << "\n";
         if (!file) {
             std::cerr << "Error writing recording\n";
             return false;

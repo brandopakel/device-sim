@@ -1,4 +1,4 @@
-device-sim-trace 2
+device-sim-trace 99
 start
 temp abc
 status
